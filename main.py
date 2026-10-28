@@ -54,6 +54,7 @@ def detect_platform(url: str) -> str:
 def extract_tiktok(url: str):
     """Extrai vídeo do TikTok sem marca d'água em HD via TikWM usando bypass de Cloudflare/TLS."""
     clean_url = url.strip()
+    last_err = "Nenhum erro registrado"
     
     # 1. Tentativa com curl_cffi (bypass de Cloudflare WAF no Render)
     if cffi_requests:
@@ -78,9 +79,15 @@ def extract_tiktok(url: str):
                             "download_type": "direct",
                             "source_url": video_url,
                             "platform": "TikTok (Sem Marca D'água)",
-                        }
+                        }, None
+                else:
+                    last_err = f"TikWM code={data.get('code')}, msg={data.get('msg')}"
+            else:
+                last_err = f"TikWM status={r.status_code}, text={r.text[:100]}"
         except Exception as e:
-            print("Erro TikWM curl_cffi:", e)
+            last_err = f"Exception curl_cffi: {str(e)}"
+    else:
+        last_err = "curl_cffi não está disponível"
 
     # 2. Fallback com requests padrão
     try:
@@ -104,11 +111,11 @@ def extract_tiktok(url: str):
                         "download_type": "direct",
                         "source_url": video_url,
                         "platform": "TikTok (Sem Marca D'água)",
-                    }
+                    }, None
     except Exception as e:
-        print("Erro TikWM requests:", e)
+        last_err += f" | requests: {str(e)}"
 
-    return None
+    return None, last_err
 
 def extract_instagram(url: str):
     """Extrai mídia de Reel ou Post público do Instagram."""
@@ -170,10 +177,10 @@ async def extract_video(req: ExtractRequest):
 
     # 1. TikTok (sem marca d'água direto via TikWM com TLS impersonation)
     if platform == "tiktok":
-        res = extract_tiktok(url)
+        res, err_detail = extract_tiktok(url)
         if res:
             return {"success": True, **res}
-        raise HTTPException(status_code=400, detail="Não foi possível obter o vídeo do TikTok. Verifique se o link está correto e o vídeo é público.")
+        raise HTTPException(status_code=400, detail=f"Erro TikTok: {err_detail}")
 
     # 2. Instagram
     if platform == "instagram":
