@@ -2,6 +2,7 @@ import os
 import re
 import urllib.parse
 import requests
+from bs4 import BeautifulSoup
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
 from pydantic import BaseModel
@@ -54,10 +55,44 @@ def extract_tiktok_tikwm(url: str):
         pass
     return None
 
+def extract_pinterest(url: str):
+    """Extrai vídeo do Pinterest diretamente do HTML em alta qualidade."""
+    try:
+        r = requests.get(url, headers=HEADERS, timeout=12)
+        html = r.text
+        
+        soup = BeautifulSoup(html, "html.parser")
+        og_title = soup.find("meta", property="og:title")
+        title = og_title["content"] if og_title and og_title.get("content") else "Pinterest Video"
+        
+        og_img = soup.find("meta", property="og:image")
+        thumbnail = og_img["content"] if og_img and og_img.get("content") else ""
+        
+        # Encontra arquivos .mp4 da CDN do Pinterest
+        mp4s = re.findall(r'https:[^"\'\s<>]+\.mp4', html)
+        video_mp4s = [u for u in mp4s if "pinimg.com" in u and "videos" in u]
+        
+        if video_mp4s:
+            # Prefere a maior resolução disponível (720w ou 1080)
+            video_url = video_mp4s[0]
+            for v in video_mp4s:
+                if "720" in v or "1080" in v or "expMp4" in v:
+                    video_url = v
+                    break
+            return {
+                "title": title,
+                "thumbnail": thumbnail,
+                "video_url": video_url,
+                "platform": "Pinterest",
+            }
+    except Exception:
+        pass
+    return None
+
 def extract_with_ytdlp(url: str, platform_name: str):
-    """Extrai vídeo usando yt-dlp na melhor qualidade disponível."""
+    """Extrai vídeo usando yt-dlp na melhor qualidade disponível com formato flexível."""
     ydl_opts = {
-        "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best",
+        "format": "best/bestvideo+bestaudio",
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
@@ -91,13 +126,19 @@ async def extract_video(req: ExtractRequest):
 
     platform = detect_platform(url)
 
-    # 1. TikTok (Tenta via TikWM primeiro para garantir sem marca d'água)
+    # 1. TikTok sem marca d'água
     if platform == "tiktok":
         res = extract_tiktok_tikwm(url)
         if res and res.get("video_url"):
             return {"success": True, **res}
 
-    # 2. Pinterest, Instagram, Twitter, YouTube e fallback do TikTok
+    # 2. Pinterest (Extração direta ultra-rápida de MP4 HD)
+    if platform == "pinterest":
+        res = extract_pinterest(url)
+        if res and res.get("video_url"):
+            return {"success": True, **res}
+
+    # 3. Instagram, Twitter, YouTube e fallback geral
     platform_names = {
         "tiktok": "TikTok",
         "pinterest": "Pinterest",
@@ -112,9 +153,13 @@ async def extract_video(req: ExtractRequest):
         if res and res.get("video_url"):
             return {"success": True, **res}
     except Exception as e:
-        # Se for TikTok e yt-dlp falhar, tentar TikWM novamente
+        # Fallbacks finais
         if platform == "tiktok":
             res = extract_tiktok_tikwm(url)
+            if res and res.get("video_url"):
+                return {"success": True, **res}
+        if platform == "pinterest":
+            res = extract_pinterest(url)
             if res and res.get("video_url"):
                 return {"success": True, **res}
         raise HTTPException(status_code=400, detail=f"Não foi possível obter o vídeo: {str(e)}")
