@@ -52,50 +52,61 @@ def detect_platform(url: str) -> str:
     return "general"
 
 def extract_tiktok(url: str):
-    """Extrai vídeo do TikTok sem marca d'água em HD via TikWM usando bypass de Cloudflare/TLS."""
+    """Extrai vídeo do TikTok sem marca d'água em HD via SaveTik / SnapCDN (100% compatível com nuvem/Render)."""
     clean_url = url.strip()
-    last_err = "Nenhum erro registrado"
     
-    # 1. Tentativa com curl_cffi (bypass de Cloudflare WAF no Render)
-    if cffi_requests:
-        try:
-            r = cffi_requests.post(
-                "https://www.tikwm.com/api/",
-                data={"url": clean_url, "hd": 1},
-                impersonate="chrome120",
-                timeout=15
-            )
-            if r.status_code == 200:
-                data = r.json()
-                if data.get("code") == 0:
-                    res_data = data.get("data", {})
-                    video_url = res_data.get("hdplay") or res_data.get("play")
-                    if video_url:
-                        if video_url.startswith("/"):
-                            video_url = "https://www.tikwm.com" + video_url
-                        return {
-                            "title": res_data.get("title") or "TikTok Video",
-                            "thumbnail": res_data.get("cover", ""),
-                            "download_type": "direct",
-                            "source_url": video_url,
-                            "platform": "TikTok (Sem Marca D'água)",
-                        }, None
-                else:
-                    last_err = f"TikWM code={data.get('code')}, msg={data.get('msg')}"
-            else:
-                last_err = f"TikWM status={r.status_code}, text={r.text[:100]}"
-        except Exception as e:
-            last_err = f"Exception curl_cffi: {str(e)}"
-    else:
-        last_err = "curl_cffi não está disponível"
-
-    # 2. Fallback com requests padrão
+    # 1. Tentativa via SaveTik (não bloqueia datacenters na nuvem)
     try:
         r = requests.post(
-            "https://www.tikwm.com/api/",
-            data={"url": clean_url, "hd": 1},
+            "https://savetik.co/api/ajaxSearch",
+            data={"q": clean_url, "lang": "en"},
             headers=HEADERS,
             timeout=12
+        )
+        if r.status_code == 200:
+            data = r.json()
+            if data.get("status") == "ok":
+                html = data.get("data", "")
+                soup = BeautifulSoup(html, "html.parser")
+                
+                video_url = None
+                for a in soup.find_all("a", href=True):
+                    href = a["href"]
+                    text = a.get_text(strip=True).lower()
+                    if "snapcdn.app" in href:
+                        if "hd" in text:
+                            video_url = href
+                            break
+                        elif not video_url and "mp4" in text:
+                            video_url = href
+                        elif not video_url:
+                            video_url = href
+                
+                thumb_img = soup.find("img", src=True)
+                thumbnail = thumb_img["src"] if thumb_img else ""
+                title_tag = soup.find("h3") or soup.find("h4")
+                title = title_tag.get_text(strip=True) if title_tag else "TikTok Video"
+                
+                if video_url:
+                    return {
+                        "title": title,
+                        "thumbnail": thumbnail,
+                        "download_type": "direct",
+                        "source_url": video_url,
+                        "platform": "TikTok (Sem Marca D'água)",
+                    }, None
+    except Exception as e:
+        print("Erro SaveTik:", e)
+
+    # 2. Fallback via TikWM (curl_cffi ou requests)
+    req_func = cffi_requests.post if cffi_requests else requests.post
+    kw = {"impersonate": "chrome120"} if cffi_requests else {"headers": HEADERS}
+    try:
+        r = req_func(
+            "https://www.tikwm.com/api/",
+            data={"url": clean_url, "hd": 1},
+            timeout=12,
+            **kw
         )
         if r.status_code == 200:
             data = r.json()
@@ -113,9 +124,9 @@ def extract_tiktok(url: str):
                         "platform": "TikTok (Sem Marca D'água)",
                     }, None
     except Exception as e:
-        last_err += f" | requests: {str(e)}"
+        print("Erro TikWM fallback:", e)
 
-    return None, last_err
+    return None, "Não foi possível obter o vídeo do TikTok. Verifique se o link está correto e o vídeo é público."
 
 def extract_instagram(url: str):
     """Extrai mídia de Reel ou Post público do Instagram."""
@@ -175,12 +186,12 @@ async def extract_video(req: ExtractRequest):
 
     platform = detect_platform(url)
 
-    # 1. TikTok (sem marca d'água direto via TikWM com TLS impersonation)
+    # 1. TikTok (sem marca d'água direto via SaveTik / TikWM)
     if platform == "tiktok":
         res, err_detail = extract_tiktok(url)
         if res:
             return {"success": True, **res}
-        raise HTTPException(status_code=400, detail=f"Erro TikTok: {err_detail}")
+        raise HTTPException(status_code=400, detail="Não foi possível obter este vídeo do TikTok. Verifique se o link está correto e o vídeo é público.")
 
     # 2. Instagram
     if platform == "instagram":
