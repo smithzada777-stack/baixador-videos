@@ -3,15 +3,14 @@ import re
 import urllib.parse
 import requests
 from fastapi import FastAPI, Request, HTTPException
-from fastapi.responses import HTMLResponse, StreamingResponse
-from fastapi.staticfiles import StaticFiles
-from fastapi.templating import Jinja2Templates
+from fastapi.responses import HTMLResponse, StreamingResponse, FileResponse
 from pydantic import BaseModel
 import yt_dlp
 
 app = FastAPI(title="Video Downloader Pro")
 
-templates = Jinja2Templates(directory="templates")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+INDEX_FILE = os.path.join(BASE_DIR, "templates", "index.html")
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
@@ -78,9 +77,11 @@ def extract_with_ytdlp(url: str, platform_name: str):
             "platform": platform_name,
         }
 
-@app.get("/", response_class=HTMLResponse)
-async def home(request: Request):
-    return templates.TemplateResponse("index.html", {"request": request})
+@app.get("/", response_class=FileResponse)
+async def home():
+    if not os.path.exists(INDEX_FILE):
+        return HTMLResponse("<h1>Página em carregamento...</h1>")
+    return FileResponse(INDEX_FILE)
 
 @app.post("/api/extract")
 async def extract_video(req: ExtractRequest):
