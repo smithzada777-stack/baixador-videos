@@ -2,6 +2,7 @@ import os
 import re
 import uuid
 import urllib.parse
+from html import unescape
 import requests
 from bs4 import BeautifulSoup
 from fastapi import FastAPI, Request, HTTPException, BackgroundTasks
@@ -24,7 +25,14 @@ os.makedirs(TEMP_DIR, exist_ok=True)
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-    "Accept": "*/*",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+}
+
+YTDLP_EXTRACTOR_ARGS = {
+    "youtube": {
+        "player_client": ["android", "ios"]
+    }
 }
 
 class ExtractRequest(BaseModel):
@@ -45,35 +53,57 @@ def detect_platform(url: str) -> str:
     return "general"
 
 def extract_tiktok(url: str):
-    """Extrai vídeo do TikTok sem marca d'água via TikWM (POST seguro com resolução de link curto)."""
-    try:
-        clean_url = url
-        # Expande links encurtados como vt.tiktok.com ou vm.tiktok.com
-        if "vt.tiktok.com" in url or "vm.tiktok.com" in url:
-            try:
-                r_head = requests.head(url, allow_redirects=True, headers=HEADERS, timeout=6)
-                clean_url = r_head.url
-            except Exception:
-                clean_url = url
+    """Extrai vídeo do TikTok sem marca d'água em HD via TikWM."""
+    clean_url = url.strip()
+    endpoints = [
+        "https://www.tikwm.com/api/",
+        "https://api.tikwm.com/api/"
+    ]
+    
+    for ep in endpoints:
+        try:
+            r = requests.post(ep, data={"url": clean_url, "hd": 1}, headers=HEADERS, timeout=12)
+            if r.status_code == 200:
+                data = r.json()
+                if data.get("code") == 0:
+                    res_data = data.get("data", {})
+                    video_url = res_data.get("hdplay") or res_data.get("play")
+                    if video_url:
+                        if video_url.startswith("/"):
+                            video_url = "https://www.tikwm.com" + video_url
+                        return {
+                            "title": res_data.get("title") or "TikTok Video",
+                            "thumbnail": res_data.get("cover", ""),
+                            "download_type": "direct",
+                            "source_url": video_url,
+                            "platform": "TikTok (Sem Marca D'água)",
+                        }
+        except Exception as e:
+            print(f"Erro TikWM em {ep}:", e)
+            
+    return None
 
-        r = requests.post("https://www.tikwm.com/api/", data={"url": clean_url}, headers=HEADERS, timeout=12)
+def extract_instagram(url: str):
+    """Extrai mídia de Reel ou Post público do Instagram via metadados."""
+    try:
+        r = requests.get(url.strip(), headers=HEADERS, timeout=10)
         if r.status_code == 200:
-            data = r.json()
-            if data.get("code") == 0:
-                res_data = data.get("data", {})
-                video_url = res_data.get("play") or res_data.get("hdplay")
-                if video_url:
-                    if video_url.startswith("/"):
-                        video_url = "https://www.tikwm.com" + video_url
-                    return {
-                        "title": res_data.get("title") or "TikTok Video",
-                        "thumbnail": res_data.get("cover", ""),
-                        "download_type": "direct",
-                        "source_url": video_url,
-                        "platform": "TikTok (Sem Marca D'água)",
-                    }
+            html = r.text
+            # 1. Tenta og:video
+            og_match = re.search(r'<meta\s+property=["\']og:video["\']\s+content=["\'](.*?)["\']', html, re.IGNORECASE)
+            if og_match:
+                video_url = unescape(og_match.group(1))
+                thumb_match = re.search(r'<meta\s+property=["\']og:image["\']\s+content=["\'](.*?)["\']', html, re.IGNORECASE)
+                thumb = unescape(thumb_match.group(1)) if thumb_match else ""
+                return {
+                    "title": "Instagram Video",
+                    "thumbnail": thumb,
+                    "download_type": "direct",
+                    "source_url": video_url,
+                    "platform": "Instagram",
+                }
     except Exception as e:
-        print("Erro TikTok:", e)
+        print("Erro Instagram scraper:", e)
     return None
 
 def extract_metadata_ytdlp(url: str, platform_name: str):
@@ -82,6 +112,7 @@ def extract_metadata_ytdlp(url: str, platform_name: str):
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
+        "extractor_args": YTDLP_EXTRACTOR_ARGS,
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
@@ -107,14 +138,20 @@ async def extract_video(req: ExtractRequest):
 
     platform = detect_platform(url)
 
-    # 1. TikTok (sem marca d'água direto via POST)
+    # 1. TikTok (sem marca d'água direto via TikWM)
     if platform == "tiktok":
         res = extract_tiktok(url)
         if res:
             return {"success": True, **res}
-        raise HTTPException(status_code=400, detail="Não foi possível obter o vídeo do TikTok. Verifique se o vídeo é público.")
+        raise HTTPException(status_code=400, detail="Não foi possível obter o vídeo do TikTok. Verifique se o link está correto e o vídeo é público.")
 
-    # 2. Pinterest, Instagram, Twitter, YouTube
+    # 2. Instagram (tenta scraper direto primeiro, depois yt-dlp)
+    if platform == "instagram":
+        res = extract_instagram(url)
+        if res:
+            return {"success": True, **res}
+
+    # 3. Pinterest, YouTube, Twitter, Instagram fallback
     platform_names = {
         "tiktok": "TikTok",
         "pinterest": "Pinterest",
@@ -129,7 +166,10 @@ async def extract_video(req: ExtractRequest):
         res = extract_metadata_ytdlp(url, p_name)
         return {"success": True, **res}
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Não foi possível processar este link: {str(e)}")
+        err_msg = str(e)
+        if "Private video" in err_msg or "Sign in" in err_msg:
+            raise HTTPException(status_code=400, detail="Este vídeo requer login ou é privado.")
+        raise HTTPException(status_code=400, detail=f"Não foi possível processar este link: {err_msg}")
 
 def cleanup_file(filepath: str):
     """Remove arquivo temporário do servidor após envio."""
@@ -146,7 +186,7 @@ async def handle_download(url: str, dtype: str = "ytdlp", title: str = "video", 
     filename = f"{safe_title}.mp4"
     encoded_filename = urllib.parse.quote(filename)
 
-    # Caso 1: Download direto (ex: TikTok sem marca d'água via TikWM)
+    # Caso 1: Download direto (TikTok, Instagram direto, etc.)
     if dtype == "direct":
         def iter_content():
             with requests.get(url, headers=HEADERS, stream=True, timeout=60) as r:
@@ -161,7 +201,7 @@ async def handle_download(url: str, dtype: str = "ytdlp", title: str = "video", 
         }
         return StreamingResponse(iter_content(), headers=headers)
 
-    # Caso 2: Processamento via yt-dlp + ffmpeg (Pinterest, Instagram, Twitter, etc.)
+    # Caso 2: Processamento via yt-dlp + ffmpeg (Pinterest, YouTube, Twitter, etc.)
     temp_id = uuid.uuid4().hex[:8]
     temp_out = os.path.join(TEMP_DIR, f"{temp_id}.%(ext)s")
     final_file = os.path.join(TEMP_DIR, f"{temp_id}.mp4")
@@ -173,6 +213,7 @@ async def handle_download(url: str, dtype: str = "ytdlp", title: str = "video", 
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
+        "extractor_args": YTDLP_EXTRACTOR_ARGS,
     }
     if FFMPEG_PATH:
         ydl_opts["ffmpeg_location"] = FFMPEG_PATH
@@ -182,7 +223,6 @@ async def handle_download(url: str, dtype: str = "ytdlp", title: str = "video", 
             ydl.download([url])
 
         if not os.path.exists(final_file):
-            # Procura por qualquer arquivo gerado com o prefixo
             for f in os.listdir(TEMP_DIR):
                 if f.startswith(temp_id):
                     final_file = os.path.join(TEMP_DIR, f)
