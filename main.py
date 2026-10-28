@@ -1,6 +1,7 @@
 import os
 import re
 import uuid
+import base64
 import urllib.parse
 from html import unescape
 import requests
@@ -43,13 +44,55 @@ def detect_platform(url: str) -> str:
         return "tiktok"
     elif "pinterest.com" in url_lower or "pin.it" in url_lower:
         return "pinterest"
-    elif "instagram.com" in url_lower:
-        return "instagram"
     elif "twitter.com" in url_lower or "x.com" in url_lower:
         return "twitter"
+    elif "reddit.com" in url_lower or "redd.it" in url_lower:
+        return "reddit"
+    elif "facebook.com" in url_lower or "fb.watch" in url_lower:
+        return "facebook"
+    elif "instagram.com" in url_lower:
+        return "instagram"
     elif "youtube.com" in url_lower or "youtu.be" in url_lower:
         return "youtube"
     return "general"
+
+def extract_twitter(url: str):
+    """Extrai vídeo do Twitter / X via TwitSave (resolução direta sem bloqueio) ou yt-dlp."""
+    clean_url = url.strip()
+    
+    # 1. Tentativa via TwitSave (extração rápida do MP4 direto do CDN twimg)
+    try:
+        ts_url = f"https://twitsave.com/info?url={urllib.parse.quote(clean_url)}"
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+        }
+        r = requests.get(ts_url, headers=headers, timeout=12)
+        if r.status_code == 200:
+            soup = BeautifulSoup(r.text, "html.parser")
+            for a in soup.find_all("a", href=True):
+                href = a["href"]
+                if "download?file=" in href:
+                    encoded_file = href.split("download?file=")[1].split("&")[0]
+                    decoded_file = base64.b64decode(urllib.parse.unquote(encoded_file)).decode("utf-8")
+                    title_elem = soup.find("p", class_=re.compile(r"m-2|text|content"))
+                    title = title_elem.get_text(strip=True)[:100] if title_elem else "Twitter Video"
+                    return {
+                        "title": title,
+                        "thumbnail": "",
+                        "download_type": "direct",
+                        "source_url": decoded_file,
+                        "platform": "Twitter / X",
+                    }
+    except Exception as e:
+        print("Erro TwitSave:", e)
+
+    # 2. Fallback via yt-dlp
+    try:
+        return extract_metadata_ytdlp(clean_url, "Twitter / X")
+    except Exception as e:
+        print("Erro yt-dlp twitter:", e)
+
+    return None
 
 def extract_tiktok(url: str):
     """Extrai vídeo do TikTok sem marca d'água em HD via SaveTik / SnapCDN (100% compatível com nuvem/Render)."""
@@ -216,18 +259,27 @@ async def extract_video(req: ExtractRequest):
             return {"success": True, **res}
         raise HTTPException(status_code=400, detail=f"Erro TikTok: {err_detail}")
 
-    # 2. Instagram
+    # 2. Twitter / X (resolução direta MP4 via TwitSave + yt-dlp)
+    if platform == "twitter":
+        res = extract_twitter(url)
+        if res:
+            return {"success": True, **res}
+        raise HTTPException(status_code=400, detail="Não foi possível extrair o vídeo do Twitter/X. Verifique se o post contém um vídeo público.")
+
+    # 3. Instagram
     if platform == "instagram":
         res = extract_instagram(url)
         if res:
             return {"success": True, **res}
 
-    # 3. Pinterest, YouTube, Twitter, Instagram fallback
+    # 4. Pinterest, Reddit, Facebook, YouTube e outros links
     platform_names = {
         "tiktok": "TikTok",
         "pinterest": "Pinterest",
         "instagram": "Instagram",
         "twitter": "Twitter / X",
+        "reddit": "Reddit",
+        "facebook": "Facebook",
         "youtube": "YouTube",
         "general": "Vídeo",
     }
