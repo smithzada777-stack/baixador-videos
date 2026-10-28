@@ -179,6 +179,56 @@
             submitBtn.disabled = true;
             submitBtn.classList.add('opacity-50');
 
+            // 1. Otimização Direta do Cliente para TikTok (evita qualquer bloqueio de datacenter e funciona 100% no celular)
+            if (url.toLowerCase().includes('tiktok.com')) {
+                try {
+                    const formData = new FormData();
+                    formData.append('url', url);
+                    formData.append('hd', '1');
+
+                    const tikRes = await fetch('https://www.tikwm.com/api/', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    if (tikRes.ok) {
+                        const tikData = await tikRes.json();
+                        if (tikData.code === 0 && tikData.data) {
+                            const rawUrl = tikData.data.play || tikData.data.hdplay;
+                            const fullVUrl = rawUrl.startsWith('/') ? 'https://www.tikwm.com' + rawUrl : rawUrl;
+                            const title = tikData.data.title || 'TikTok Video';
+
+                            videoTitle.textContent = title;
+                            platformTag.textContent = "TikTok (Sem Marca D'água)";
+                            videoThumb.src = tikData.data.cover || '';
+
+                            // Link de download pelo servidor com nome amigável e Content-Disposition
+                            const downloadUrl = `/api/download?url=${encodeURIComponent(fullVUrl)}&dtype=direct&title=${encodeURIComponent(title)}`;
+                            directDownloadBtn.href = downloadUrl;
+                            directDownloadBtn.target = "_blank";
+
+                            // Feedback visual de clique no download
+                            directDownloadBtn.onclick = function() {
+                                const originalHTML = directDownloadBtn.innerHTML;
+                                directDownloadBtn.innerHTML = '<i class="fa-solid fa-spinner animate-spin text-lg"></i><span>Iniciando Download...</span>';
+                                setTimeout(() => {
+                                    directDownloadBtn.innerHTML = originalHTML;
+                                }, 4000);
+                            };
+
+                            resultCard.classList.remove('hidden');
+                            loading.classList.add('hidden');
+                            submitBtn.disabled = false;
+                            submitBtn.classList.remove('opacity-50');
+                            return;
+                        }
+                    }
+                } catch (tikErr) {
+                    console.log('Tentando via servidor...', tikErr);
+                }
+            }
+
+            // 2. Extração via Servidor (Pinterest, Instagram, Twitter, etc.)
             try {
                 const res = await fetch('/api/extract', {
                     method: 'POST',
@@ -197,17 +247,18 @@
                 platformTag.textContent = data.platform || 'Vídeo';
                 videoThumb.src = data.thumbnail || '';
 
-                // Configurar link de download direto
+                // Configurar link de download
                 const downloadUrl = `/api/download?url=${encodeURIComponent(data.source_url)}&dtype=${encodeURIComponent(data.download_type)}&title=${encodeURIComponent(data.title || 'video')}`;
                 directDownloadBtn.href = downloadUrl;
+                directDownloadBtn.target = "_blank";
 
-                // Animação de clique no download
+                // Feedback visual de clique no download
                 directDownloadBtn.onclick = function() {
                     const originalHTML = directDownloadBtn.innerHTML;
-                    directDownloadBtn.innerHTML = '<i class="fa-solid fa-spinner animate-spin text-lg"></i><span>Processando MP4 em HD...</span>';
+                    directDownloadBtn.innerHTML = '<i class="fa-solid fa-spinner animate-spin text-lg"></i><span>Iniciando Download...</span>';
                     setTimeout(() => {
                         directDownloadBtn.innerHTML = originalHTML;
-                    }, 8000);
+                    }, 4000);
                 };
 
                 resultCard.classList.remove('hidden');
