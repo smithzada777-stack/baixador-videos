@@ -55,6 +55,9 @@ def extract_tiktok(url: str):
     """Extrai vídeo do TikTok sem marca d'água em HD via SaveTik / SnapCDN (100% compatível com nuvem/Render)."""
     clean_url = url.strip()
     
+    err_savetik = ""
+    err_tikwm = ""
+    
     # 1. Tentativa via SaveTik com curl_cffi (bypass de Cloudflare no Render)
     req_func = cffi_requests.post if cffi_requests else requests.post
     kw = {"impersonate": "chrome120"} if cffi_requests else {"headers": {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}}
@@ -97,8 +100,14 @@ def extract_tiktok(url: str):
                         "source_url": video_url,
                         "platform": "TikTok (Sem Marca D'água)",
                     }, None
+                else:
+                    err_savetik = f"SaveTik 200 sem links: {len(soup.find_all('a'))}"
+            else:
+                err_savetik = f"SaveTik status={data.get('status')}"
+        else:
+            err_savetik = f"SaveTik HTTP {r.status_code}: {r.text[:60]}"
     except Exception as e:
-        print("Erro SaveTik:", e)
+        err_savetik = f"SaveTik exc: {str(e)}"
 
     # 2. Fallback via TikWM (curl_cffi ou requests)
     req_func = cffi_requests.post if cffi_requests else requests.post
@@ -125,10 +134,14 @@ def extract_tiktok(url: str):
                         "source_url": video_url,
                         "platform": "TikTok (Sem Marca D'água)",
                     }, None
+            else:
+                err_tikwm = f"TikWM code={data.get('code')}, msg={data.get('msg')}"
+        else:
+            err_tikwm = f"TikWM HTTP {r.status_code}"
     except Exception as e:
-        print("Erro TikWM fallback:", e)
+        err_tikwm = f"TikWM exc: {str(e)}"
 
-    return None, "Não foi possível obter o vídeo do TikTok. Verifique se o link está correto e o vídeo é público."
+    return None, f"cffi={cffi_requests is not None} | {err_savetik} | {err_tikwm}"
 
 def extract_instagram(url: str):
     """Extrai mídia de Reel ou Post público do Instagram."""
@@ -174,6 +187,14 @@ def extract_metadata_ytdlp(url: str, platform_name: str):
             "platform": platform_name,
         }
 
+@app.get("/api/health")
+async def health_check():
+    return {
+        "status": "ok",
+        "has_curl_cffi": cffi_requests is not None,
+        "ffmpeg": FFMPEG_PATH is not None
+    }
+
 @app.get("/", response_class=FileResponse)
 async def home():
     if not os.path.exists(INDEX_FILE):
@@ -193,7 +214,7 @@ async def extract_video(req: ExtractRequest):
         res, err_detail = extract_tiktok(url)
         if res:
             return {"success": True, **res}
-        raise HTTPException(status_code=400, detail="Não foi possível obter este vídeo do TikTok. Verifique se o link está correto e o vídeo é público.")
+        raise HTTPException(status_code=400, detail=f"Erro TikTok: {err_detail}")
 
     # 2. Instagram
     if platform == "instagram":
