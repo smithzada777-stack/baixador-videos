@@ -124,6 +124,47 @@ def extract_metadata_ytdlp(url: str, platform_name: str):
             "platform": platform_name,
         }
 
+@app.get("/api/debug")
+async def debug_endpoint(url: str):
+    import traceback
+    results = {}
+    
+    # Debug TikTok
+    try:
+        r = requests.post("https://www.tikwm.com/api/", data={"url": url.strip(), "hd": 1}, headers=HEADERS, timeout=12)
+        results["tikwm"] = {
+            "status_code": r.status_code,
+            "text": r.text[:500],
+            "headers": dict(r.headers)
+        }
+    except Exception as e:
+        results["tikwm_error"] = str(e)
+
+    # Debug yt-dlp
+    clients_to_test = [
+        ["android"],
+        ["ios"],
+        ["mweb"],
+        ["tv_embedded"],
+        ["web"]
+    ]
+    results["ytdlp_clients"] = {}
+    for c in clients_to_test:
+        opts = {
+            "quiet": True,
+            "noplaylist": True,
+            "extractor_args": {"youtube": {"player_client": c}}
+        }
+        try:
+            with yt_dlp.YoutubeDL(opts) as ydl:
+                info = ydl.extract_info(url, download=False)
+                results["ytdlp_clients"][str(c)] = {"success": True, "title": info.get("title")}
+                break
+        except Exception as e:
+            results["ytdlp_clients"][str(c)] = {"success": False, "error": str(e)[:200]}
+
+    return results
+
 @app.get("/", response_class=FileResponse)
 async def home():
     if not os.path.exists(INDEX_FILE):
