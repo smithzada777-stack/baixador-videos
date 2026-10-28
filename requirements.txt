@@ -6,3 +6,4 @@ jinja2
 python-multipart
 beautifulsoup4
 imageio-ffmpeg
+curl_cffi

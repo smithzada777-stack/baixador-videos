@@ -11,6 +11,11 @@ from pydantic import BaseModel
 import yt_dlp
 
 try:
+    from curl_cffi import requests as cffi_requests
+except Exception:
+    cffi_requests = None
+
+try:
     import imageio_ffmpeg
     FFMPEG_PATH = imageio_ffmpeg.get_ffmpeg_exe()
 except Exception:
@@ -27,12 +32,6 @@ HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
     "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
-}
-
-YTDLP_EXTRACTOR_ARGS = {
-    "youtube": {
-        "player_client": ["android", "ios"]
-    }
 }
 
 class ExtractRequest(BaseModel):
@@ -53,16 +52,18 @@ def detect_platform(url: str) -> str:
     return "general"
 
 def extract_tiktok(url: str):
-    """Extrai vídeo do TikTok sem marca d'água em HD via TikWM."""
+    """Extrai vídeo do TikTok sem marca d'água em HD via TikWM usando bypass de Cloudflare/TLS."""
     clean_url = url.strip()
-    endpoints = [
-        "https://www.tikwm.com/api/",
-        "https://api.tikwm.com/api/"
-    ]
     
-    for ep in endpoints:
+    # 1. Tentativa com curl_cffi (bypass de Cloudflare WAF no Render)
+    if cffi_requests:
         try:
-            r = requests.post(ep, data={"url": clean_url, "hd": 1}, headers=HEADERS, timeout=12)
+            r = cffi_requests.post(
+                "https://www.tikwm.com/api/",
+                data={"url": clean_url, "hd": 1},
+                impersonate="chrome120",
+                timeout=15
+            )
             if r.status_code == 200:
                 data = r.json()
                 if data.get("code") == 0:
@@ -79,17 +80,47 @@ def extract_tiktok(url: str):
                             "platform": "TikTok (Sem Marca D'água)",
                         }
         except Exception as e:
-            print(f"Erro TikWM em {ep}:", e)
-            
+            print("Erro TikWM curl_cffi:", e)
+
+    # 2. Fallback com requests padrão
+    try:
+        r = requests.post(
+            "https://www.tikwm.com/api/",
+            data={"url": clean_url, "hd": 1},
+            headers=HEADERS,
+            timeout=12
+        )
+        if r.status_code == 200:
+            data = r.json()
+            if data.get("code") == 0:
+                res_data = data.get("data", {})
+                video_url = res_data.get("hdplay") or res_data.get("play")
+                if video_url:
+                    if video_url.startswith("/"):
+                        video_url = "https://www.tikwm.com" + video_url
+                    return {
+                        "title": res_data.get("title") or "TikTok Video",
+                        "thumbnail": res_data.get("cover", ""),
+                        "download_type": "direct",
+                        "source_url": video_url,
+                        "platform": "TikTok (Sem Marca D'água)",
+                    }
+    except Exception as e:
+        print("Erro TikWM requests:", e)
+
     return None
 
 def extract_instagram(url: str):
-    """Extrai mídia de Reel ou Post público do Instagram via metadados."""
+    """Extrai mídia de Reel ou Post público do Instagram."""
+    req_module = cffi_requests if cffi_requests else requests
     try:
-        r = requests.get(url.strip(), headers=HEADERS, timeout=10)
+        if cffi_requests:
+            r = cffi_requests.get(url.strip(), impersonate="chrome120", timeout=12)
+        else:
+            r = requests.get(url.strip(), headers=HEADERS, timeout=12)
+            
         if r.status_code == 200:
             html = r.text
-            # 1. Tenta og:video
             og_match = re.search(r'<meta\s+property=["\']og:video["\']\s+content=["\'](.*?)["\']', html, re.IGNORECASE)
             if og_match:
                 video_url = unescape(og_match.group(1))
@@ -112,7 +143,6 @@ def extract_metadata_ytdlp(url: str, platform_name: str):
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
-        "extractor_args": YTDLP_EXTRACTOR_ARGS,
     }
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=False)
@@ -123,47 +153,6 @@ def extract_metadata_ytdlp(url: str, platform_name: str):
             "source_url": url,
             "platform": platform_name,
         }
-
-@app.get("/api/debug")
-async def debug_endpoint(url: str):
-    import traceback
-    results = {}
-    
-    # Debug TikTok
-    try:
-        r = requests.post("https://www.tikwm.com/api/", data={"url": url.strip(), "hd": 1}, headers=HEADERS, timeout=12)
-        results["tikwm"] = {
-            "status_code": r.status_code,
-            "text": r.text[:500],
-            "headers": dict(r.headers)
-        }
-    except Exception as e:
-        results["tikwm_error"] = str(e)
-
-    # Debug yt-dlp
-    clients_to_test = [
-        ["android"],
-        ["ios"],
-        ["mweb"],
-        ["tv_embedded"],
-        ["web"]
-    ]
-    results["ytdlp_clients"] = {}
-    for c in clients_to_test:
-        opts = {
-            "quiet": True,
-            "noplaylist": True,
-            "extractor_args": {"youtube": {"player_client": c}}
-        }
-        try:
-            with yt_dlp.YoutubeDL(opts) as ydl:
-                info = ydl.extract_info(url, download=False)
-                results["ytdlp_clients"][str(c)] = {"success": True, "title": info.get("title")}
-                break
-        except Exception as e:
-            results["ytdlp_clients"][str(c)] = {"success": False, "error": str(e)[:200]}
-
-    return results
 
 @app.get("/", response_class=FileResponse)
 async def home():
@@ -179,14 +168,14 @@ async def extract_video(req: ExtractRequest):
 
     platform = detect_platform(url)
 
-    # 1. TikTok (sem marca d'água direto via TikWM)
+    # 1. TikTok (sem marca d'água direto via TikWM com TLS impersonation)
     if platform == "tiktok":
         res = extract_tiktok(url)
         if res:
             return {"success": True, **res}
         raise HTTPException(status_code=400, detail="Não foi possível obter o vídeo do TikTok. Verifique se o link está correto e o vídeo é público.")
 
-    # 2. Instagram (tenta scraper direto primeiro, depois yt-dlp)
+    # 2. Instagram
     if platform == "instagram":
         res = extract_instagram(url)
         if res:
@@ -208,8 +197,8 @@ async def extract_video(req: ExtractRequest):
         return {"success": True, **res}
     except Exception as e:
         err_msg = str(e)
-        if "Private video" in err_msg or "Sign in" in err_msg:
-            raise HTTPException(status_code=400, detail="Este vídeo requer login ou é privado.")
+        if "Private video" in err_msg or "Sign in to confirm you’re not a bot" in err_msg:
+            raise HTTPException(status_code=400, detail="Esta plataforma bloqueia downloads anônimos de servidores em nuvem (exige login do usuário).")
         raise HTTPException(status_code=400, detail=f"Não foi possível processar este link: {err_msg}")
 
 def cleanup_file(filepath: str):
@@ -227,9 +216,11 @@ async def handle_download(url: str, dtype: str = "ytdlp", title: str = "video", 
     filename = f"{safe_title}.mp4"
     encoded_filename = urllib.parse.quote(filename)
 
-    # Caso 1: Download direto (TikTok, Instagram direto, etc.)
+    # Caso 1: Download direto (TikTok sem marca d'água, etc.)
     if dtype == "direct":
         def iter_content():
+            req_func = cffi_requests.get if cffi_requests else requests.get
+            headers = HEADERS if not cffi_requests else {}
             with requests.get(url, headers=HEADERS, stream=True, timeout=60) as r:
                 r.raise_for_status()
                 for chunk in r.iter_content(chunk_size=1024 * 512):
@@ -242,7 +233,7 @@ async def handle_download(url: str, dtype: str = "ytdlp", title: str = "video", 
         }
         return StreamingResponse(iter_content(), headers=headers)
 
-    # Caso 2: Processamento via yt-dlp + ffmpeg (Pinterest, YouTube, Twitter, etc.)
+    # Caso 2: Processamento via yt-dlp + ffmpeg (Pinterest, Twitter, etc.)
     temp_id = uuid.uuid4().hex[:8]
     temp_out = os.path.join(TEMP_DIR, f"{temp_id}.%(ext)s")
     final_file = os.path.join(TEMP_DIR, f"{temp_id}.mp4")
@@ -254,7 +245,6 @@ async def handle_download(url: str, dtype: str = "ytdlp", title: str = "video", 
         "quiet": True,
         "no_warnings": True,
         "noplaylist": True,
-        "extractor_args": YTDLP_EXTRACTOR_ARGS,
     }
     if FFMPEG_PATH:
         ydl_opts["ffmpeg_location"] = FFMPEG_PATH
