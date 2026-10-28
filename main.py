@@ -60,7 +60,7 @@ def extract_tiktok(url: str):
         r = requests.post(
             "https://savetik.co/api/ajaxSearch",
             data={"q": clean_url, "lang": "en"},
-            headers=HEADERS,
+            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
             timeout=12
         )
         if r.status_code == 200:
@@ -95,8 +95,14 @@ def extract_tiktok(url: str):
                         "source_url": video_url,
                         "platform": "TikTok (Sem Marca D'água)",
                     }, None
+                else:
+                    return None, f"SaveTik sem links: a_tags={len(soup.find_all('a'))}, html_len={len(html)}"
+            else:
+                return None, f"SaveTik status!=ok: {data}"
+        else:
+            return None, f"SaveTik HTTP {r.status_code}: {r.text[:80]}"
     except Exception as e:
-        print("Erro SaveTik:", e)
+        return None, f"SaveTik Exception: {str(e)}"
 
     # 2. Fallback via TikWM (curl_cffi ou requests)
     req_func = cffi_requests.post if cffi_requests else requests.post
@@ -191,7 +197,7 @@ async def extract_video(req: ExtractRequest):
         res, err_detail = extract_tiktok(url)
         if res:
             return {"success": True, **res}
-        raise HTTPException(status_code=400, detail="Não foi possível obter este vídeo do TikTok. Verifique se o link está correto e o vídeo é público.")
+        raise HTTPException(status_code=400, detail=f"Erro TikTok: {err_detail}")
 
     # 2. Instagram
     if platform == "instagram":
