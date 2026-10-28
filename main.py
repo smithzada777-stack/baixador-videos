@@ -55,13 +55,15 @@ def extract_tiktok(url: str):
     """Extrai vídeo do TikTok sem marca d'água em HD via SaveTik / SnapCDN (100% compatível com nuvem/Render)."""
     clean_url = url.strip()
     
-    # 1. Tentativa via SaveTik (não bloqueia datacenters na nuvem)
+    # 1. Tentativa via SaveTik com curl_cffi (bypass de Cloudflare no Render)
+    req_func = cffi_requests.post if cffi_requests else requests.post
+    kw = {"impersonate": "chrome120"} if cffi_requests else {"headers": {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}}
     try:
-        r = requests.post(
+        r = req_func(
             "https://savetik.co/api/ajaxSearch",
             data={"q": clean_url, "lang": "en"},
-            headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"},
-            timeout=12
+            timeout=15,
+            **kw
         )
         if r.status_code == 200:
             data = r.json()
@@ -95,14 +97,8 @@ def extract_tiktok(url: str):
                         "source_url": video_url,
                         "platform": "TikTok (Sem Marca D'água)",
                     }, None
-                else:
-                    return None, f"SaveTik sem links: a_tags={len(soup.find_all('a'))}, html_len={len(html)}"
-            else:
-                return None, f"SaveTik status!=ok: {data}"
-        else:
-            return None, f"SaveTik HTTP {r.status_code}: {r.text[:80]}"
     except Exception as e:
-        return None, f"SaveTik Exception: {str(e)}"
+        print("Erro SaveTik:", e)
 
     # 2. Fallback via TikWM (curl_cffi ou requests)
     req_func = cffi_requests.post if cffi_requests else requests.post
@@ -197,7 +193,7 @@ async def extract_video(req: ExtractRequest):
         res, err_detail = extract_tiktok(url)
         if res:
             return {"success": True, **res}
-        raise HTTPException(status_code=400, detail=f"Erro TikTok: {err_detail}")
+        raise HTTPException(status_code=400, detail="Não foi possível obter este vídeo do TikTok. Verifique se o link está correto e o vídeo é público.")
 
     # 2. Instagram
     if platform == "instagram":
