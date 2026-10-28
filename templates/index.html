@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Baixador de Vídeos Pro | TikTok, Insta, Pinterest</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #0b0f19;
+            color: #f3f4f6;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        .glass {
+            background: rgba(17, 24, 39, 0.75);
+            backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .gradient-text {
+            background: linear-gradient(135deg, #60a5fa 0%, #a855f7 50%, #ec4899 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-4 sm:p-6">
+
+    <!-- Header & Container Principal -->
+    <div class="max-w-xl mx-auto w-full pt-6 sm:pt-10">
+        
+        <!-- Topo com Logo e Título -->
+        <div class="text-center mb-8">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-purple-600 shadow-lg shadow-purple-500/20 mb-4">
+                <i class="fa-solid fa-cloud-arrow-down text-2xl text-white"></i>
+            </div>
+            <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight gradient-text">
+                Baixador de Vídeos
+            </h1>
+            <p class="text-gray-400 text-sm sm:text-base mt-2">
+                Baixe vídeos em HD original sem anúncios e sem marca d'água.
+            </p>
+        </div>
+
+        <!-- Badges de Redes Suportadas -->
+        <div class="flex flex-wrap justify-center gap-2 mb-6 text-xs font-medium">
+            <span class="px-3 py-1 rounded-full bg-gray-800 text-pink-400 border border-pink-500/20 flex items-center gap-1.5">
+                <i class="fa-brands fa-tiktok"></i> TikTok (Sem Marca)
+            </span>
+            <span class="px-3 py-1 rounded-full bg-gray-800 text-red-400 border border-red-500/20 flex items-center gap-1.5">
+                <i class="fa-brands fa-pinterest"></i> Pinterest
+            </span>
+            <span class="px-3 py-1 rounded-full bg-gray-800 text-purple-400 border border-purple-500/20 flex items-center gap-1.5">
+                <i class="fa-brands fa-instagram"></i> Instagram
+            </span>
+            <span class="px-3 py-1 rounded-full bg-gray-800 text-sky-400 border border-sky-500/20 flex items-center gap-1.5">
+                <i class="fa-brands fa-x-twitter"></i> Twitter / X
+            </span>
+        </div>
+
+        <!-- Card de Entrada (Colar Link) -->
+        <div class="glass rounded-3xl p-5 sm:p-6 shadow-2xl">
+            <form id="downloadForm" class="space-y-4">
+                <div class="relative">
+                    <input 
+                        type="url" 
+                        id="videoUrl" 
+                        required
+                        placeholder="Cole o link do vídeo aqui..." 
+                        class="w-full bg-gray-900/90 border border-gray-700/80 rounded-2xl px-4 py-4 pr-12 text-sm sm:text-base text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                    >
+                    <button 
+                        type="button" 
+                        id="pasteBtn"
+                        title="Colar da área de transferência"
+                        class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white p-2 text-sm transition-colors"
+                    >
+                        <i class="fa-regular fa-clipboard"></i>
+                    </button>
+                </div>
+
+                <button 
+                    type="submit" 
+                    id="submitBtn"
+                    class="w-full bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 hover:opacity-95 text-white font-semibold py-4 px-6 rounded-2xl shadow-lg shadow-indigo-600/30 flex items-center justify-center gap-2 transition-all active:scale-[0.98]"
+                >
+                    <i class="fa-solid fa-bolt"></i>
+                    <span>Buscar Vídeo</span>
+                </button>
+            </form>
+
+            <!-- Loading Spinner -->
+            <div id="loading" class="hidden text-center py-8">
+                <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-indigo-500 border-t-transparent"></div>
+                <p class="text-sm text-gray-400 mt-3">Localizando arquivo original em alta resolução...</p>
+            </div>
+
+            <!-- Alerta de Erro -->
+            <div id="errorMessage" class="hidden mt-4 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center"></div>
+
+            <!-- Resultado / Prévia do Vídeo -->
+            <div id="resultCard" class="hidden mt-6 pt-6 border-t border-gray-800 space-y-4">
+                <div class="flex items-center justify-between text-xs text-gray-400">
+                    <span id="platformTag" class="px-2.5 py-1 rounded-md bg-gray-800 text-blue-400 font-medium"></span>
+                    <span class="text-emerald-400 flex items-center gap-1"><i class="fa-solid fa-circle-check"></i> HD Pronto</span>
+                </div>
+
+                <h3 id="videoTitle" class="text-sm sm:text-base font-semibold text-gray-200 line-clamp-2"></h3>
+
+                <!-- Player de Prévia -->
+                <div class="rounded-2xl overflow-hidden bg-black/40 border border-gray-800 aspect-video flex items-center justify-center">
+                    <video id="videoPlayer" controls playsinline class="w-full h-full object-contain"></video>
+                </div>
+
+                <!-- Botão de Download Direto -->
+                <a 
+                    id="directDownloadBtn" 
+                    href="#" 
+                    class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 px-6 rounded-2xl shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all text-center"
+                >
+                    <i class="fa-solid fa-arrow-down-to-bracket text-lg"></i>
+                    <span>Baixar Vídeo (.MP4)</span>
+                </a>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Rodapé -->
+    <footer class="text-center text-xs text-gray-600 mt-12 py-4">
+        100% Gratuito • Sem limite de downloads • Sem anúncios
+    </footer>
+
+    <!-- JavaScript -->
+    <script>
+        const form = document.getElementById('downloadForm');
+        const urlInput = document.getElementById('videoUrl');
+        const pasteBtn = document.getElementById('pasteBtn');
+        const submitBtn = document.getElementById('submitBtn');
+        const loading = document.getElementById('loading');
+        const errorMessage = document.getElementById('errorMessage');
+        const resultCard = document.getElementById('resultCard');
+        const videoPlayer = document.getElementById('videoPlayer');
+        const videoTitle = document.getElementById('videoTitle');
+        const platformTag = document.getElementById('platformTag');
+        const directDownloadBtn = document.getElementById('directDownloadBtn');
+
+        // Botão de colar rápido
+        pasteBtn.addEventListener('click', async () => {
+            try {
+                const text = await navigator.clipboard.readText();
+                if (text) {
+                    urlInput.value = text.trim();
+                }
+            } catch (err) {
+                urlInput.focus();
+            }
+        });
+
+        // Envio do formulário
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const url = urlInput.value.trim();
+            if (!url) return;
+
+            errorMessage.classList.add('hidden');
+            resultCard.classList.add('hidden');
+            videoPlayer.pause();
+            videoPlayer.src = '';
+            
+            loading.classList.remove('hidden');
+            submitBtn.disabled = true;
+            submitBtn.classList.add('opacity-50');
+
+            try {
+                const res = await fetch('/api/extract', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url: url })
+                });
+
+                const data = await res.json();
+
+                if (!res.ok || !data.success) {
+                    throw new Error(data.detail || 'Não foi possível extrair o vídeo desse link.');
+                }
+
+                // Preencher dados no Card
+                videoTitle.textContent = data.title || 'Vídeo';
+                platformTag.textContent = data.platform || 'Vídeo';
+                videoPlayer.src = data.video_url;
+
+                // Configurar link de download direto
+                const downloadUrl = `/api/download?url=${encodeURIComponent(data.video_url)}&title=${encodeURIComponent(data.title || 'video')}`;
+                directDownloadBtn.href = downloadUrl;
+
+                resultCard.classList.remove('hidden');
+
+            } catch (err) {
+                errorMessage.textContent = err.message;
+                errorMessage.classList.remove('hidden');
+            } finally {
+                loading.classList.add('hidden');
+                submitBtn.disabled = false;
+                submitBtn.classList.remove('opacity-50');
+            }
+        });
+    </script>
+</body>
+</html>
