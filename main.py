@@ -44,25 +44,36 @@ def detect_platform(url: str) -> str:
         return "youtube"
     return "general"
 
-def extract_tiktok_tikwm(url: str):
-    """Extrai vídeo do TikTok sem marca d'água via TikWM."""
+def extract_tiktok(url: str):
+    """Extrai vídeo do TikTok sem marca d'água via TikWM (POST seguro com resolução de link curto)."""
     try:
-        api_url = f"https://www.tikwm.com/api/?url={urllib.parse.quote(url)}"
-        r = requests.get(api_url, headers=HEADERS, timeout=10)
+        clean_url = url
+        # Expande links encurtados como vt.tiktok.com ou vm.tiktok.com
+        if "vt.tiktok.com" in url or "vm.tiktok.com" in url:
+            try:
+                r_head = requests.head(url, allow_redirects=True, headers=HEADERS, timeout=6)
+                clean_url = r_head.url
+            except Exception:
+                clean_url = url
+
+        r = requests.post("https://www.tikwm.com/api/", data={"url": clean_url}, headers=HEADERS, timeout=12)
         if r.status_code == 200:
             data = r.json()
             if data.get("code") == 0:
                 res_data = data.get("data", {})
-                video_url = res_data.get("hdplay") or res_data.get("play")
-                return {
-                    "title": res_data.get("title", "TikTok Video"),
-                    "thumbnail": res_data.get("cover", ""),
-                    "download_type": "direct",
-                    "source_url": video_url,
-                    "platform": "TikTok (Sem Marca D'água)",
-                }
-    except Exception:
-        pass
+                video_url = res_data.get("play") or res_data.get("hdplay")
+                if video_url:
+                    if video_url.startswith("/"):
+                        video_url = "https://www.tikwm.com" + video_url
+                    return {
+                        "title": res_data.get("title") or "TikTok Video",
+                        "thumbnail": res_data.get("cover", ""),
+                        "download_type": "direct",
+                        "source_url": video_url,
+                        "platform": "TikTok (Sem Marca D'água)",
+                    }
+    except Exception as e:
+        print("Erro TikTok:", e)
     return None
 
 def extract_metadata_ytdlp(url: str, platform_name: str):
@@ -96,11 +107,12 @@ async def extract_video(req: ExtractRequest):
 
     platform = detect_platform(url)
 
-    # 1. TikTok (sem marca d'água direto)
+    # 1. TikTok (sem marca d'água direto via POST)
     if platform == "tiktok":
-        res = extract_tiktok_tikwm(url)
+        res = extract_tiktok(url)
         if res:
             return {"success": True, **res}
+        raise HTTPException(status_code=400, detail="Não foi possível obter o vídeo do TikTok. Verifique se o vídeo é público.")
 
     # 2. Pinterest, Instagram, Twitter, YouTube
     platform_names = {
@@ -117,11 +129,6 @@ async def extract_video(req: ExtractRequest):
         res = extract_metadata_ytdlp(url, p_name)
         return {"success": True, **res}
     except Exception as e:
-        # Fallback para TikTok se yt-dlp falhar
-        if platform == "tiktok":
-            res = extract_tiktok_tikwm(url)
-            if res:
-                return {"success": True, **res}
         raise HTTPException(status_code=400, detail=f"Não foi possível processar este link: {str(e)}")
 
 def cleanup_file(filepath: str):
