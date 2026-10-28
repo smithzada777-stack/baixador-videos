@@ -5,3 +5,4 @@ requests
 jinja2
 python-multipart
 beautifulsoup4
+imageio-ffmpeg
