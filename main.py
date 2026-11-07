@@ -330,6 +330,79 @@ def extract_instagram(url: str):
     except Exception:
         return None
 
+def extract_pinterest(url: str):
+    """Extrai vídeos do Pinterest (incluindo links encurtados pin.it) com qualidade máxima."""
+    clean_url = url.strip()
+    
+    # 1. Tentativa de extração direta dos streams do CDN v1.pinimg.com
+    try:
+        req_func = cffi_requests.get if cffi_requests else requests.get
+        kw = {"impersonate": "chrome120"} if cffi_requests else {"headers": HEADERS}
+        r = req_func(clean_url, timeout=12, **kw)
+        if r.status_code == 200:
+            html = r.text
+            pattern = r'https://v1\.pinimg\.com/videos/[^\s"\'<>]+?\.mp4'
+            found_urls = list(set(re.findall(pattern, html)))
+            
+            soup = BeautifulSoup(html, "html.parser")
+            og_title = soup.find("meta", property="og:title")
+            title = og_title["content"][:100] if og_title and og_title.get("content") else "Pinterest Video"
+            og_img = soup.find("meta", property="og:image")
+            thumb = og_img["content"] if og_img and og_img.get("content") else ""
+            
+            if found_urls:
+                candidates = []
+                for u in found_urls:
+                    res_m = re.search(r'/(\d{3,4})p/', u)
+                    score = int(res_m.group(1)) if res_m else 720
+                    candidates.append((score, u))
+                
+                candidates.sort(key=lambda x: x[0], reverse=True)
+                
+                formats = []
+                seen_scores = set()
+                for score, v_url in candidates:
+                    if score in seen_scores:
+                        continue
+                    seen_scores.add(score)
+                    lbl = f"{score}p Full HD" if score >= 1080 else f"{score}p HD"
+                    formats.append({
+                        "label": f"{lbl} (Qualidade Máxima)" if score == candidates[0][0] else f"{lbl}",
+                        "quality": f"{score}p",
+                        "badge": "Melhor Qualidade" if score == candidates[0][0] else "Alta Resolução",
+                        "url": v_url,
+                        "dtype": "direct",
+                        "format_id": str(score),
+                        "is_audio": False
+                    })
+                
+                formats.append({
+                    "label": "Apenas Áudio (MP3)",
+                    "quality": "audio",
+                    "badge": "Áudio",
+                    "url": candidates[0][1],
+                    "dtype": "direct",
+                    "format_id": "audio",
+                    "is_audio": True
+                })
+                
+                return {
+                    "title": title,
+                    "thumbnail": thumb,
+                    "platform": "Pinterest",
+                    "formats": formats
+                }
+    except Exception as e:
+        print("Erro Pinterest scraper direto:", e)
+
+    # 2. Fallback via yt-dlp
+    try:
+        return extract_metadata_ytdlp(clean_url, "Pinterest")
+    except Exception as e:
+        print("Erro yt-dlp Pinterest:", e)
+
+    return None
+
 def extract_metadata_ytdlp(url: str, platform_name: str):
     """Extrai metadados e opções reais de qualidade usando yt-dlp."""
     ydl_opts = {
@@ -473,7 +546,14 @@ async def extract_video(req: ExtractRequest):
             return {"success": True, **res}
         raise HTTPException(status_code=400, detail="Não foi possível extrair o vídeo do Twitter/X. Verifique se o post contém um vídeo público.")
 
-    # 3. Instagram
+    # 3. Pinterest
+    if platform == "pinterest":
+        res = extract_pinterest(url)
+        if res:
+            return {"success": True, **res}
+        raise HTTPException(status_code=400, detail="Não foi possível extrair o vídeo do Pinterest. Verifique se o pin contém um vídeo público.")
+
+    # 4. Instagram
     if platform == "instagram":
         res = extract_instagram(url)
         if res:
