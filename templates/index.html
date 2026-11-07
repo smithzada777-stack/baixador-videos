@@ -238,99 +238,32 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        // Função de Download sem sair do PWA (Resolve o travamento no iPhone / iOS)
-        async function triggerDownload(downloadUrl, title, isAudio, btnElem) {
+        // Função de Download Direto e Confiável (Sem erros de permissão)
+        function triggerDownload(downloadUrl, btnElem) {
             const originalContent = btnElem.innerHTML;
             btnElem.disabled = true;
             btnElem.classList.add('opacity-75');
-
             btnElem.innerHTML = `
                 <div class="flex items-center justify-center w-full py-1 text-sm font-semibold text-emerald-300 gap-2">
                     <i class="fa-solid fa-circle-notch animate-spin text-base"></i>
-                    <span id="btnProgressText">Baixando arquivo...</span>
+                    <span>Iniciando Download...</span>
                 </div>
             `;
 
-            try {
-                const safeTitle = (title || 'video').replace(/[^a-zA-Z0-9_\- ]/g, '').trim() || 'video';
-                const ext = isAudio ? 'mp3' : 'mp4';
-                const filename = `${safeTitle}.${ext}`;
-                const mimeType = isAudio ? 'audio/mpeg' : 'video/mp4';
+            // Dispara download direto e abre o arquivo no dispositivo
+            const link = document.createElement('a');
+            link.style.display = 'none';
+            link.href = downloadUrl;
+            link.setAttribute('download', '');
+            document.body.appendChild(link);
+            link.click();
 
-                // 1. Fetch do arquivo via JavaScript em background (não altera a tela do PWA)
-                const response = await fetch(downloadUrl);
-                if (!response.ok) {
-                    throw new Error(`Falha no download (HTTP ${response.status})`);
-                }
-
-                const contentLength = response.headers.get('content-length');
-                const total = contentLength ? parseInt(contentLength, 10) : 0;
-                let blob;
-
-                if (response.body) {
-                    const reader = response.body.getReader();
-                    let receivedLength = 0;
-                    const chunks = [];
-                    while (true) {
-                        const { done, value } = await reader.read();
-                        if (done) break;
-                        chunks.push(value);
-                        receivedLength += value.length;
-                        
-                        const progressSpan = document.getElementById('btnProgressText');
-                        if (progressSpan) {
-                            if (total > 0) {
-                                const pct = Math.min(99, Math.round((receivedLength / total) * 100));
-                                progressSpan.textContent = `Baixando... ${pct}%`;
-                            } else {
-                                const mb = (receivedLength / (1024 * 1024)).toFixed(1);
-                                progressSpan.textContent = `Baixando... ${mb} MB`;
-                            }
-                        }
-                    }
-                    blob = new Blob(chunks, { type: mimeType });
-                } else {
-                    blob = await response.blob();
-                }
-
-                // Cria o arquivo virtual
-                const file = new File([blob], filename, { type: mimeType });
-
-                // 2. Se for iPhone/iOS ou dispositivo com Web Share API para arquivos
-                // Abre o menu nativo do iOS para "Salvar Vídeo" ou "Salvar em Arquivos" SEM TRAVAR O APP!
-                if (navigator.canShare && navigator.canShare({ files: [file] })) {
-                    const progressSpan = document.getElementById('btnProgressText');
-                    if (progressSpan) progressSpan.textContent = 'Pronto! Abrindo opções...';
-                    
-                    await navigator.share({
-                        files: [file],
-                        title: filename
-                    });
-                } else {
-                    // 3. Fallback para PC / Android (salva direto na pasta de Downloads)
-                    const blobUrl = URL.createObjectURL(blob);
-                    const link = document.createElement('a');
-                    link.style.display = 'none';
-                    link.href = blobUrl;
-                    link.download = filename;
-                    document.body.appendChild(link);
-                    link.click();
-                    setTimeout(() => {
-                        document.body.removeChild(link);
-                        URL.revokeObjectURL(blobUrl);
-                    }, 2000);
-                }
-            } catch (err) {
-                // AbortError acontece quando o usuário fecha o menu do iOS sem escolher nada (não é erro)
-                if (err.name !== 'AbortError') {
-                    console.error('Erro no download:', err);
-                    alert('Não foi possível concluir o download: ' + err.message);
-                }
-            } finally {
+            setTimeout(() => {
+                document.body.removeChild(link);
                 btnElem.disabled = false;
                 btnElem.classList.remove('opacity-75');
                 btnElem.innerHTML = originalContent;
-            }
+            }, 3500);
         }
 
         // Renderiza os botões reais de qualidade
@@ -398,7 +331,7 @@
                     </div>
                 `;
 
-                btn.onclick = () => triggerDownload(downloadUrl, title, isAudio, btn);
+                btn.onclick = () => triggerDownload(downloadUrl, btn);
                 qualityButtonsList.appendChild(btn);
             });
         }
