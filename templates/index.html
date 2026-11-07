@@ -2,20 +2,52 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Baixador de Vídeos Pro | TikTok, Insta, Pinterest</title>
-    <!-- Tailwind CSS CDN -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+    <title>Baixador de Vídeos Pro | HD Original</title>
+    
+    <!-- Configurações PWA e iOS Safe Area -->
+    <meta name="theme-color" content="#0b0f19">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Baixador Pro">
+    <meta name="mobile-web-app-capable" content="yes">
+    <link rel="manifest" href="/manifest.json">
+    <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png">
+    
+    <!-- Tailwind CSS CDN & FontAwesome -->
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    
     <style>
+        /* Correção Definitiva do Desfoque Superior do iPhone (iOS Safari & Standalone PWA) */
+        :root {
+            --bg-color: #0b0f19;
+            color-scheme: dark;
+        }
+        html {
+            background-color: #0b0f19 !important;
+            height: 100%;
+            -webkit-text-size-adjust: 100%;
+        }
         body {
-            background-color: #0b0f19;
+            background-color: #0b0f19 !important;
+            min-height: 100vh;
+            min-height: -webkit-fill-available;
             color: #f3f4f6;
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding-top: max(1.25rem, env(safe-area-inset-top, 0px));
+            padding-bottom: max(1.25rem, env(safe-area-inset-bottom, 0px));
+            padding-left: max(1rem, env(safe-area-inset-left, 0px));
+            padding-right: max(1rem, env(safe-area-inset-right, 0px));
+            overscroll-behavior-y: none;
+            -webkit-font-smoothing: antialiased;
+            -webkit-tap-highlight-color: transparent;
         }
-        .glass {
-            background: rgba(17, 24, 39, 0.75);
-            backdrop-filter: blur(16px);
+
+        .glass-card {
+            background: #111827;
             border: 1px solid rgba(255, 255, 255, 0.08);
         }
         .gradient-text {
@@ -25,45 +57,48 @@
         }
     </style>
 </head>
-<body class="min-h-screen flex flex-col justify-between p-4 sm:p-6">
+<body class="flex flex-col justify-between">
 
-    <!-- Header & Container Principal -->
-    <div class="max-w-xl mx-auto w-full pt-6 sm:pt-10">
+    <!-- Container Principal do App -->
+    <main class="max-w-xl mx-auto w-full pt-4 sm:pt-8 flex-1">
         
-        <!-- Topo com Logo e Título -->
-        <div class="text-center mb-8">
-            <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-purple-600 shadow-lg shadow-purple-500/20 mb-4">
+        <!-- Topo: Ícone e Título -->
+        <header class="text-center mb-6">
+            <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-purple-600 shadow-xl shadow-purple-500/20 mb-3.5">
                 <i class="fa-solid fa-cloud-arrow-down text-2xl text-white"></i>
             </div>
-            <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight gradient-text">
+            <h1 class="text-3xl sm:text-4xl font-black tracking-tight gradient-text">
                 Baixador de Vídeos
             </h1>
-            <p class="text-gray-400 text-sm sm:text-base mt-2">
-                Baixe vídeos em HD original sem anúncios e sem marca d'água.
+            <p class="text-gray-400 text-xs sm:text-sm mt-1.5 max-w-sm mx-auto">
+                Extraia a qualidade máxima original sem anúncios e sem abrir novas guias.
             </p>
-        </div>
+        </header>
 
-        <!-- Badges de Redes Suportadas -->
-        <div class="flex flex-wrap justify-center gap-2 mb-6 text-xs font-medium">
-            <span class="px-3 py-1 rounded-full bg-gray-800 text-pink-400 border border-pink-500/20 flex items-center gap-1.5">
-                <i class="fa-brands fa-tiktok"></i> TikTok (Sem Marca)
+        <!-- Badges de Redes Sociais Suportadas -->
+        <div class="flex flex-wrap justify-center gap-1.5 sm:gap-2 mb-6 text-xs font-medium px-2">
+            <span class="px-2.5 py-1 rounded-full bg-gray-900 text-pink-400 border border-pink-500/20 flex items-center gap-1.5 shadow-sm">
+                <i class="fa-brands fa-tiktok"></i> TikTok HD
             </span>
-            <span class="px-3 py-1 rounded-full bg-gray-800 text-sky-400 border border-sky-500/20 flex items-center gap-1.5">
+            <span class="px-2.5 py-1 rounded-full bg-gray-900 text-sky-400 border border-sky-500/20 flex items-center gap-1.5 shadow-sm">
                 <i class="fa-brands fa-x-twitter"></i> Twitter / X
             </span>
-            <span class="px-3 py-1 rounded-full bg-gray-800 text-red-400 border border-red-500/20 flex items-center gap-1.5">
-                <i class="fa-brands fa-pinterest"></i> Pinterest HD
+            <span class="px-2.5 py-1 rounded-full bg-gray-900 text-red-400 border border-red-500/20 flex items-center gap-1.5 shadow-sm">
+                <i class="fa-brands fa-pinterest"></i> Pinterest
             </span>
-            <span class="px-3 py-1 rounded-full bg-gray-800 text-orange-400 border border-orange-500/20 flex items-center gap-1.5">
+            <span class="px-2.5 py-1 rounded-full bg-gray-900 text-purple-400 border border-purple-500/20 flex items-center gap-1.5 shadow-sm">
+                <i class="fa-brands fa-instagram"></i> Instagram
+            </span>
+            <span class="px-2.5 py-1 rounded-full bg-gray-900 text-orange-400 border border-orange-500/20 flex items-center gap-1.5 shadow-sm">
                 <i class="fa-brands fa-reddit"></i> Reddit
             </span>
-            <span class="px-3 py-1 rounded-full bg-gray-800 text-blue-400 border border-blue-500/20 flex items-center gap-1.5">
+            <span class="px-2.5 py-1 rounded-full bg-gray-900 text-blue-400 border border-blue-500/20 flex items-center gap-1.5 shadow-sm">
                 <i class="fa-brands fa-facebook"></i> Facebook
             </span>
         </div>
 
         <!-- Card de Entrada (Colar Link) -->
-        <div class="glass rounded-3xl p-5 sm:p-6 shadow-2xl">
+        <section class="glass-card rounded-3xl p-4 sm:p-6 shadow-2xl">
             <form id="downloadForm" class="space-y-4">
                 <div class="relative">
                     <input 
@@ -71,13 +106,13 @@
                         id="videoUrl" 
                         required
                         placeholder="Cole o link do vídeo aqui..." 
-                        class="w-full bg-gray-900/90 border border-gray-700/80 rounded-2xl px-4 py-4 pr-12 text-sm sm:text-base text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                        class="w-full bg-gray-900 border border-gray-700/80 rounded-2xl px-4 py-4 pr-12 text-sm sm:text-base text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all shadow-inner"
                     >
                     <button 
                         type="button" 
                         id="pasteBtn"
                         title="Colar da área de transferência"
-                        class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white p-2 text-sm transition-colors"
+                        class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-white p-2.5 text-base transition-colors"
                     >
                         <i class="fa-regular fa-clipboard"></i>
                     </button>
@@ -96,51 +131,58 @@
             <!-- Loading Spinner -->
             <div id="loading" class="hidden text-center py-8">
                 <div class="inline-block animate-spin rounded-full h-8 w-8 border-4 border-indigo-500 border-t-transparent"></div>
-                <p class="text-sm text-gray-400 mt-3">Localizando arquivo original em alta resolução...</p>
+                <p class="text-sm text-gray-400 mt-3 font-medium">Buscando mídias e opções de qualidade máxima...</p>
             </div>
 
             <!-- Alerta de Erro -->
             <div id="errorMessage" class="hidden mt-4 p-4 rounded-2xl bg-red-500/10 border border-red-500/20 text-red-400 text-sm text-center"></div>
 
-            <!-- Resultado / Prévia do Vídeo -->
+            <!-- Card de Resultado & Escolha de Qualidade -->
             <div id="resultCard" class="hidden mt-6 pt-6 border-t border-gray-800 space-y-4">
+                
+                <!-- Tag da Plataforma e Status -->
                 <div class="flex items-center justify-between text-xs text-gray-400">
-                    <span id="platformTag" class="px-2.5 py-1 rounded-md bg-gray-800 text-blue-400 font-medium"></span>
-                    <span class="text-emerald-400 flex items-center gap-1"><i class="fa-solid fa-circle-check"></i> HD Pronto</span>
+                    <span id="platformTag" class="px-2.5 py-1 rounded-lg bg-gray-800 text-indigo-400 font-semibold uppercase tracking-wider text-[11px]"></span>
+                    <span class="text-emerald-400 flex items-center gap-1 font-medium"><i class="fa-solid fa-circle-check"></i> Pronto para Download</span>
                 </div>
 
+                <!-- Título do Vídeo -->
                 <h3 id="videoTitle" class="text-sm sm:text-base font-semibold text-gray-200 line-clamp-2"></h3>
 
                 <!-- Capa de Prévia -->
-                <div class="relative rounded-2xl overflow-hidden bg-black/40 border border-gray-800 aspect-video flex items-center justify-center group">
+                <div id="thumbContainer" class="relative rounded-2xl overflow-hidden bg-black/50 border border-gray-800 aspect-video flex items-center justify-center">
                     <img id="videoThumb" src="" alt="Capa do Vídeo" class="w-full h-full object-cover">
-                    <div class="absolute inset-0 bg-black/30 flex items-center justify-center">
-                        <div class="w-14 h-14 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white text-xl shadow-lg border border-white/30">
-                            <i class="fa-solid fa-play ml-1"></i>
+                    <div class="absolute inset-0 bg-black/25 flex items-center justify-center pointer-events-none">
+                        <div class="w-12 h-12 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center text-white text-lg shadow-lg border border-white/30">
+                            <i class="fa-solid fa-play ml-0.5"></i>
                         </div>
                     </div>
                 </div>
 
-                <!-- Botão de Download Direto -->
-                <a 
-                    id="directDownloadBtn" 
-                    href="#" 
-                    class="w-full bg-emerald-600 hover:bg-emerald-500 text-white font-bold py-4 px-6 rounded-2xl shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 transition-all text-center"
-                >
-                    <i class="fa-solid fa-arrow-down-to-bracket text-lg"></i>
-                    <span>Baixar Vídeo (.MP4)</span>
-                </a>
-            </div>
-        </div>
+                <!-- SELETOR REAL DE QUALIDADES (BOTÕES) -->
+                <div class="pt-2">
+                    <div class="flex items-center justify-between mb-2.5">
+                        <span class="text-xs font-bold text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
+                            <i class="fa-solid fa-sliders text-indigo-400"></i> Escolha a Qualidade:
+                        </span>
+                        <span class="text-[11px] text-gray-500">Download direto na página</span>
+                    </div>
 
-    </div>
+                    <!-- Lista de Botões de Qualidade (Injetados via JS) -->
+                    <div id="qualityButtonsList" class="space-y-2.5"></div>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
 
     <!-- Rodapé -->
-    <footer class="text-center text-xs text-gray-600 mt-12 py-4">
-        100% Gratuito • Sem limite de downloads • Sem anúncios
+    <footer class="text-center text-xs text-gray-600 py-4 mt-6">
+        100% Gratuito • Sem limite de downloads • Sem abrir novas guias
     </footer>
 
-    <!-- JavaScript -->
+    <!-- JavaScript do App -->
     <script>
         const form = document.getElementById('downloadForm');
         const urlInput = document.getElementById('videoUrl');
@@ -149,12 +191,22 @@
         const loading = document.getElementById('loading');
         const errorMessage = document.getElementById('errorMessage');
         const resultCard = document.getElementById('resultCard');
+        const thumbContainer = document.getElementById('thumbContainer');
         const videoThumb = document.getElementById('videoThumb');
         const videoTitle = document.getElementById('videoTitle');
         const platformTag = document.getElementById('platformTag');
-        const directDownloadBtn = document.getElementById('directDownloadBtn');
+        const qualityButtonsList = document.getElementById('qualityButtonsList');
 
-        // Botão de colar rápido
+        // Registro de Service Worker para PWA
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js').catch((err) => {
+                    console.log('SW registration fail:', err);
+                });
+            });
+        }
+
+        // Botão de Colar Rápido
         pasteBtn.addEventListener('click', async () => {
             try {
                 const text = await navigator.clipboard.readText();
@@ -166,7 +218,105 @@
             }
         });
 
-        // Envio do formulário
+        // Função de Download Direto na mesma página (Sem abrir nova aba!)
+        function triggerDownload(downloadUrl, btnElem) {
+            const originalContent = btnElem.innerHTML;
+            btnElem.disabled = true;
+            btnElem.classList.add('opacity-75');
+            btnElem.innerHTML = `
+                <div class="flex items-center justify-center w-full py-1 text-sm font-semibold text-emerald-300 gap-2">
+                    <i class="fa-solid fa-circle-notch animate-spin text-base"></i>
+                    <span>Iniciando Download...</span>
+                </div>
+            `;
+
+            // Dispara download silencioso sem sair da aba atual
+            const link = document.createElement('a');
+            link.style.display = 'none';
+            link.href = downloadUrl;
+            link.setAttribute('download', '');
+            document.body.appendChild(link);
+            link.click();
+
+            setTimeout(() => {
+                document.body.removeChild(link);
+                btnElem.disabled = false;
+                btnElem.classList.remove('opacity-75');
+                btnElem.innerHTML = originalContent;
+            }, 4500);
+        }
+
+        // Renderiza os botões reais de qualidade
+        function renderQualityButtons(formats, title) {
+            qualityButtonsList.innerHTML = '';
+
+            if (!formats || formats.length === 0) {
+                qualityButtonsList.innerHTML = '<p class="text-xs text-gray-500 text-center py-2">Nenhum formato disponível.</p>';
+                return;
+            }
+
+            formats.forEach((fmt, index) => {
+                const isAudio = fmt.is_audio || fmt.quality === 'audio';
+                const isBest = fmt.badge === 'Melhor Qualidade' || fmt.quality === '1080p' || index === 0;
+
+                // Monta URL de download
+                const downloadUrl = `/api/download?url=${encodeURIComponent(fmt.url)}&dtype=${encodeURIComponent(fmt.dtype || 'ytdlp')}&title=${encodeURIComponent(title)}&format_id=${encodeURIComponent(fmt.format_id || fmt.quality || 'best')}&is_audio=${isAudio ? 'true' : 'false'}`;
+
+                // Cria o botão estilizado
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = `w-full flex items-center justify-between p-3.5 rounded-2xl border transition-all active:scale-[0.99] text-left group ${
+                    isBest 
+                    ? 'bg-gradient-to-r from-emerald-950/40 to-gray-900 border-emerald-500/40 hover:border-emerald-500/70 shadow-lg shadow-emerald-950/20' 
+                    : isAudio
+                    ? 'bg-gray-900/90 border-purple-500/30 hover:border-purple-500/60'
+                    : 'bg-gray-900/90 border-gray-700/60 hover:border-gray-600'
+                }`;
+
+                // Ícone à esquerda
+                const iconHtml = isAudio
+                    ? '<i class="fa-solid fa-music text-purple-400 text-base"></i>'
+                    : isBest
+                    ? '<i class="fa-solid fa-crown text-emerald-400 text-base"></i>'
+                    : '<i class="fa-solid fa-film text-indigo-400 text-base"></i>';
+
+                // Badge de qualidade
+                const badgeColor = isBest 
+                    ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30' 
+                    : isAudio
+                    ? 'bg-purple-500/20 text-purple-300 border border-purple-500/30'
+                    : 'bg-gray-800 text-gray-300 border border-gray-700';
+
+                btn.innerHTML = `
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-gray-800/90 flex items-center justify-center shrink-0 border border-gray-700/40 group-hover:scale-105 transition-transform">
+                            ${iconHtml}
+                        </div>
+                        <div>
+                            <div class="text-sm font-bold text-white group-hover:text-emerald-300 transition-colors">
+                                ${fmt.label}
+                            </div>
+                            <div class="text-[11px] text-gray-400">
+                                ${isAudio ? 'Formato MP3 de alta fidelidade' : isBest ? 'Resolução máxima sem perda de qualidade' : 'Arquivo leve para compartilhamento'}
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-[10px] sm:text-xs px-2.5 py-1 rounded-full font-semibold ${badgeColor}">
+                            ${fmt.badge || fmt.quality}
+                        </span>
+                        <div class="w-8 h-8 rounded-full bg-gray-800 flex items-center justify-center text-gray-400 group-hover:text-white group-hover:bg-indigo-600 transition-all">
+                            <i class="fa-solid fa-arrow-down-to-bracket text-xs"></i>
+                        </div>
+                    </div>
+                `;
+
+                btn.onclick = () => triggerDownload(downloadUrl, btn);
+                qualityButtonsList.appendChild(btn);
+            });
+        }
+
+        // Submissão do Formulário
         form.addEventListener('submit', async (e) => {
             e.preventDefault();
             const url = urlInput.value.trim();
@@ -174,12 +324,11 @@
 
             errorMessage.classList.add('hidden');
             resultCard.classList.add('hidden');
-            
             loading.classList.remove('hidden');
             submitBtn.disabled = true;
             submitBtn.classList.add('opacity-50');
 
-            // 1. Otimização Direta do Cliente para TikTok (evita qualquer bloqueio de datacenter e funciona 100% no celular)
+            // 1. Otimização Direta do Cliente para TikTok (com opções de qualidade 1080p, 720p e MP3)
             if (url.toLowerCase().includes('tiktok.com')) {
                 try {
                     const formData = new FormData();
@@ -194,27 +343,57 @@
                     if (tikRes.ok) {
                         const tikData = await tikRes.json();
                         if (tikData.code === 0 && tikData.data) {
-                            const rawUrl = tikData.data.play || tikData.data.hdplay;
-                            const fullVUrl = rawUrl.startsWith('/') ? 'https://www.tikwm.com' + rawUrl : rawUrl;
                             const title = tikData.data.title || 'TikTok Video';
-
                             videoTitle.textContent = title;
                             platformTag.textContent = "TikTok (Sem Marca D'água)";
-                            videoThumb.src = tikData.data.cover || '';
+                            
+                            if (tikData.data.cover) {
+                                videoThumb.src = tikData.data.cover;
+                                thumbContainer.classList.remove('hidden');
+                            } else {
+                                thumbContainer.classList.add('hidden');
+                            }
 
-                            // Link de download pelo servidor com nome amigável e Content-Disposition
-                            const downloadUrl = `/api/download?url=${encodeURIComponent(fullVUrl)}&dtype=direct&title=${encodeURIComponent(title)}`;
-                            directDownloadBtn.href = downloadUrl;
-                            directDownloadBtn.target = "_blank";
+                            // Monta os formatos reais disponíveis do TikTok
+                            const formats = [];
+                            if (tikData.data.hdplay) {
+                                const hdUrl = tikData.data.hdplay.startsWith('/') ? 'https://www.tikwm.com' + tikData.data.hdplay : tikData.data.hdplay;
+                                formats.push({
+                                    label: "1080p Full HD (Original Sem Marca)",
+                                    quality: "1080p",
+                                    badge: "Melhor Qualidade",
+                                    url: hdUrl,
+                                    dtype: "direct",
+                                    format_id: "1080",
+                                    is_audio: false
+                                });
+                            }
+                            if (tikData.data.play) {
+                                const playUrl = tikData.data.play.startsWith('/') ? 'https://www.tikwm.com' + tikData.data.play : tikData.data.play;
+                                formats.push({
+                                    label: "720p HD (Padrão Sem Marca)",
+                                    quality: "720p",
+                                    badge: "Mais Rápido",
+                                    url: playUrl,
+                                    dtype: "direct",
+                                    format_id: "720",
+                                    is_audio: false
+                                });
+                            }
+                            if (tikData.data.music) {
+                                const musicUrl = tikData.data.music.startsWith('/') ? 'https://www.tikwm.com' + tikData.data.music : tikData.data.music;
+                                formats.push({
+                                    label: "Áudio Original (MP3)",
+                                    quality: "audio",
+                                    badge: "Áudio",
+                                    url: musicUrl,
+                                    dtype: "direct",
+                                    format_id: "audio",
+                                    is_audio: true
+                                });
+                            }
 
-                            // Feedback visual de clique no download
-                            directDownloadBtn.onclick = function() {
-                                const originalHTML = directDownloadBtn.innerHTML;
-                                directDownloadBtn.innerHTML = '<i class="fa-solid fa-spinner animate-spin text-lg"></i><span>Iniciando Download...</span>';
-                                setTimeout(() => {
-                                    directDownloadBtn.innerHTML = originalHTML;
-                                }, 4000);
-                            };
+                            renderQualityButtons(formats, title);
 
                             resultCard.classList.remove('hidden');
                             loading.classList.add('hidden');
@@ -224,11 +403,11 @@
                         }
                     }
                 } catch (tikErr) {
-                    console.log('Tentando via servidor...', tikErr);
+                    console.log('Fallback para servidor:', tikErr);
                 }
             }
 
-            // 2. Extração via Servidor (Pinterest, Instagram, Twitter, etc.)
+            // 2. Extração via Servidor para Twitter, Instagram, Pinterest, YouTube, etc.
             try {
                 const res = await fetch('/api/extract', {
                     method: 'POST',
@@ -239,28 +418,21 @@
                 const data = await res.json();
 
                 if (!res.ok || !data.success) {
-                    throw new Error(data.detail || 'Não foi possível extrair o vídeo desse link.');
+                    throw new Error(data.detail || 'Não foi possível extrair as mídias desse link.');
                 }
 
                 // Preencher dados no Card
                 videoTitle.textContent = data.title || 'Vídeo';
                 platformTag.textContent = data.platform || 'Vídeo';
-                videoThumb.src = data.thumbnail || '';
 
-                // Configurar link de download
-                const downloadUrl = `/api/download?url=${encodeURIComponent(data.source_url)}&dtype=${encodeURIComponent(data.download_type)}&title=${encodeURIComponent(data.title || 'video')}`;
-                directDownloadBtn.href = downloadUrl;
-                directDownloadBtn.target = "_blank";
+                if (data.thumbnail) {
+                    videoThumb.src = data.thumbnail;
+                    thumbContainer.classList.remove('hidden');
+                } else {
+                    thumbContainer.classList.add('hidden');
+                }
 
-                // Feedback visual de clique no download
-                directDownloadBtn.onclick = function() {
-                    const originalHTML = directDownloadBtn.innerHTML;
-                    directDownloadBtn.innerHTML = '<i class="fa-solid fa-spinner animate-spin text-lg"></i><span>Iniciando Download...</span>';
-                    setTimeout(() => {
-                        directDownloadBtn.innerHTML = originalHTML;
-                    }, 4000);
-                };
-
+                renderQualityButtons(data.formats || [], data.title || 'video');
                 resultCard.classList.remove('hidden');
 
             } catch (err) {
