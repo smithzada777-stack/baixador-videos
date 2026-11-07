@@ -187,6 +187,44 @@
 
     </main>
 
+    <!-- Modal de Salvar no iPhone sem sair do App -->
+    <div id="saveModal" class="hidden fixed inset-0 z-50 items-end sm:items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+        <div class="w-full max-w-sm rounded-3xl bg-gray-900 border border-gray-700/90 p-5 sm:p-6 shadow-2xl text-center space-y-4">
+            
+            <div class="w-14 h-14 rounded-2xl bg-emerald-500/20 text-emerald-400 mx-auto flex items-center justify-center text-2xl border border-emerald-500/30">
+                <i class="fa-solid fa-circle-check"></i>
+            </div>
+
+            <div>
+                <h3 class="text-base sm:text-lg font-bold text-white">Vídeo Pronto!</h3>
+                <p id="modalFilename" class="text-xs text-gray-400 truncate mt-1"></p>
+            </div>
+
+            <div class="space-y-2.5 pt-2">
+                <!-- Botão com clique DIRETO para ativar o iOS Share Sheet com permissão total -->
+                <button 
+                    type="button" 
+                    id="modalSaveBtn"
+                    onclick="sharePreparedFile()" 
+                    class="w-full py-4 px-5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:opacity-95 text-white font-bold text-sm sm:text-base shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 active:scale-[0.98] transition-all"
+                >
+                    <i class="fa-solid fa-download text-lg"></i>
+                    <span>Salvar nas Fotos do iPhone</span>
+                </button>
+
+                <!-- Botão de Fechar / Continuar no App -->
+                <button 
+                    type="button" 
+                    onclick="closeSaveModal()" 
+                    class="w-full py-3 px-4 rounded-xl bg-gray-800 hover:bg-gray-700 text-gray-400 hover:text-white text-xs font-semibold transition-colors"
+                >
+                    Fechar / Baixar Outro
+                </button>
+            </div>
+
+        </div>
+    </div>
+
     <!-- Rodapé -->
     <footer class="text-center text-xs text-gray-600 py-4 mt-6">
         100% Gratuito • Sem limite de downloads • Sem abrir novas guias
@@ -238,32 +276,129 @@
             window.scrollTo({ top: 0, behavior: 'smooth' });
         }
 
-        // Função de Download Direto e Confiável (Sem erros de permissão)
-        function triggerDownload(downloadUrl, btnElem) {
+        let preparedFile = null;
+        let preparedFilename = '';
+
+        function openSaveModal(filename) {
+            const modal = document.getElementById('saveModal');
+            const modalFilename = document.getElementById('modalFilename');
+            if (modalFilename) modalFilename.textContent = filename;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+
+        function closeSaveModal() {
+            const modal = document.getElementById('saveModal');
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+
+        // Clique DIRETO e SÍNCRONO que o iOS Safari aceita 100% sem erro de permissão!
+        async function sharePreparedFile() {
+            if (!preparedFile) return;
+            try {
+                await navigator.share({
+                    files: [preparedFile],
+                    title: preparedFilename
+                });
+                closeSaveModal();
+            } catch (err) {
+                if (err.name !== 'AbortError') {
+                    console.error('Erro ao compartilhar:', err);
+                }
+            }
+        }
+
+        // Download com 2 etapas para iPhone: prepara o arquivo e abre com clique direto (Sem travar o app!)
+        async function triggerDownload(downloadUrl, title, isAudio, btnElem) {
             const originalContent = btnElem.innerHTML;
             btnElem.disabled = true;
             btnElem.classList.add('opacity-75');
             btnElem.innerHTML = `
                 <div class="flex items-center justify-center w-full py-1 text-sm font-semibold text-emerald-300 gap-2">
                     <i class="fa-solid fa-circle-notch animate-spin text-base"></i>
-                    <span>Iniciando Download...</span>
+                    <span id="btnProgressText">Baixando arquivo...</span>
                 </div>
             `;
 
-            // Dispara download direto e abre o arquivo no dispositivo
-            const link = document.createElement('a');
-            link.style.display = 'none';
-            link.href = downloadUrl;
-            link.setAttribute('download', '');
-            document.body.appendChild(link);
-            link.click();
+            try {
+                const safeTitle = (title || 'video').replace(/[^a-zA-Z0-9_\- ]/g, '').trim() || 'video';
+                const ext = isAudio ? 'mp3' : 'mp4';
+                const filename = `${safeTitle}.${ext}`;
+                const mimeType = isAudio ? 'audio/mpeg' : 'video/mp4';
 
-            setTimeout(() => {
-                document.body.removeChild(link);
+                // 1. Baixa o arquivo para a memória em segundo plano (sem navegar a tela!)
+                const response = await fetch(downloadUrl);
+                if (!response.ok) {
+                    throw new Error(`Falha no download (HTTP ${response.status})`);
+                }
+
+                const contentLength = response.headers.get('content-length');
+                const total = contentLength ? parseInt(contentLength, 10) : 0;
+                let blob;
+
+                if (response.body) {
+                    const reader = response.body.getReader();
+                    let receivedLength = 0;
+                    const chunks = [];
+                    while (true) {
+                        const { done, value } = await reader.read();
+                        if (done) break;
+                        chunks.push(value);
+                        receivedLength += value.length;
+                        
+                        const progressSpan = document.getElementById('btnProgressText');
+                        if (progressSpan) {
+                            if (total > 0) {
+                                const pct = Math.min(99, Math.round((receivedLength / total) * 100));
+                                progressSpan.textContent = `Preparando... ${pct}%`;
+                            } else {
+                                const mb = (receivedLength / (1024 * 1024)).toFixed(1);
+                                progressSpan.textContent = `Preparando... ${mb} MB`;
+                            }
+                        }
+                    }
+                    blob = new Blob(chunks, { type: mimeType });
+                } else {
+                    blob = await response.blob();
+                }
+
+                preparedFile = new File([blob], filename, { type: mimeType });
+                preparedFilename = filename;
+
+                // 2. Se for iPhone ou dispositivo com suporte a salvar arquivos:
+                // Abre o popup elegante para o usuário dar um toque DIRETO (sem expirar a permissão do iOS)
+                if (navigator.canShare && navigator.canShare({ files: [preparedFile] })) {
+                    openSaveModal(filename);
+                } else {
+                    // Fallback para PC / Android: salva direto no Downloads
+                    const blobUrl = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.style.display = 'none';
+                    link.href = blobUrl;
+                    link.download = filename;
+                    document.body.appendChild(link);
+                    link.click();
+                    setTimeout(() => {
+                        document.body.removeChild(link);
+                        URL.revokeObjectURL(blobUrl);
+                    }, 2000);
+                }
+            } catch (err) {
+                console.error('Erro:', err);
+                // Fallback tradicional se o fetch falhar
+                const link = document.createElement('a');
+                link.style.display = 'none';
+                link.href = downloadUrl;
+                link.setAttribute('download', '');
+                document.body.appendChild(link);
+                link.click();
+                setTimeout(() => document.body.removeChild(link), 2000);
+            } finally {
                 btnElem.disabled = false;
                 btnElem.classList.remove('opacity-75');
                 btnElem.innerHTML = originalContent;
-            }, 3500);
+            }
         }
 
         // Renderiza os botões reais de qualidade
@@ -331,7 +466,7 @@
                     </div>
                 `;
 
-                btn.onclick = () => triggerDownload(downloadUrl, btn);
+                btn.onclick = () => triggerDownload(downloadUrl, title, isAudio, btn);
                 qualityButtonsList.appendChild(btn);
             });
         }
